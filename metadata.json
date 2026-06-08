@@ -1,0 +1,8 @@
+{
+  "name": "Presensi Wajah Guru SMKN 5 Pulau Taliabu",
+  "description": "Aplikasi absensi guru berbasis pengenalan wajah untuk masuk dan pulang, terintegrasi dengan laporan Microsoft Excel di SMKN 5 Pulau Taliabu.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
