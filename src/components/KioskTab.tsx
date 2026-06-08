@@ -17,11 +17,24 @@ interface KioskTabProps {
 
 export default function KioskTab({ teachers, records, config, onPunchAttendance }: KioskTabProps) {
   const [isClockIn, setIsClockIn] = useState<boolean>(true);
-  const [selectedDemoTeacher, setSelectedDemoTeacher] = useState<string>('AUTO');
+  const [selectedDemoTeacher, setSelectedDemoTeacher] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanStatusMessage, setScanStatusMessage] = useState<string>('Siap memindai wajah Anda');
   const [scanSuccessResult, setScanSuccessResult] = useState<{ teacher: Teacher; time: string; status: string; type: 'MASUK' | 'PULANG' } | null>(null);
+  const [isAutoScanEnabled, setIsAutoScanEnabled] = useState<boolean>(true);
+  const [autoScannedTeacherId, setAutoScannedTeacherId] = useState<string>('');
+
+  // Reset lock state when selection or checking mode changes
+  useEffect(() => {
+    if (!selectedDemoTeacher) {
+      setAutoScannedTeacherId('');
+    }
+  }, [selectedDemoTeacher]);
+
+  useEffect(() => {
+    setAutoScannedTeacherId('');
+  }, [isClockIn]);
   
   // Interactive bio-liveness checks (Anti-Spoofing & Cheat Prevention Engine)
   const [antiFraudActive, setAntiFraudActive] = useState<boolean>(true);
@@ -378,6 +391,14 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
       alert("Belum ada guru terdaftar. Silakan registrasi guru terlebih dahulu di tab Admin.");
       return;
     }
+
+    if (!selectedDemoTeacher) {
+      alert("Tidak ada wajah terdeteksi di depan kamera! Silakan pilih nama dewan guru di panel sebelah kanan terlebih dahulu.");
+      return;
+    }
+    
+    // Lock auto scanned teacher key to prevent looping automated triggers
+    setAutoScannedTeacherId(selectedDemoTeacher);
     
     setIsScanning(true);
     setScanProgress(0);
@@ -616,7 +637,45 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
     }, 120);
   };
 
-  // Helper to determine gradient color based on avatar key
+  // Efek Pindai Otomatis (Face Auto Detect Scanning Loop)
+  useEffect(() => {
+    if (!isAutoScanEnabled || teachers.length === 0) return;
+
+    if (!selectedDemoTeacher) {
+      setScanStatusMessage("📸 SENSOR KAMERA HANDS-FREE: Tempelkan/pilih wajah guru untuk memicu pemindaian otomatis...");
+      return;
+    }
+
+    // Jika wajah ini sudah dipindai otomatis sebelumnya, jangan berkali-kali memicu scan
+    if (autoScannedTeacherId === selectedDemoTeacher) {
+      const scannedTeacherName = teachers.find(t => t.id === selectedDemoTeacher)?.name || 'Guru';
+      setScanStatusMessage(`✓ Profil ${scannedTeacherName} sudah dipindai. Silakan ganti profil atau reset.`);
+      return;
+    }
+
+    let autoTriggerTimeout: NodeJS.Timeout | null = null;
+    let transitionTimeout: NodeJS.Timeout | null = null;
+
+    if (!isScanning && !scanSuccessResult) {
+      setScanStatusMessage("📷 WAJAH TERDETEKSI! Menjajarkan biometrik...");
+
+      // Deteksi wajah stabil setelah 1.2 detik (cepat dan responsif sekali wajah terdeteksi)
+      autoTriggerTimeout = setTimeout(() => {
+        setScanStatusMessage("🟢 ADJUST TERVERIFIKASI! Memulai pencocokan otomatis dalam 0.8 detik...");
+        
+        // Picu scanning sesungguhnya setelah deteksi terkonfirmasi
+        transitionTimeout = setTimeout(() => {
+          handleTriggerScan();
+        }, 850);
+
+      }, 1200);
+    }
+
+    return () => {
+      if (autoTriggerTimeout) clearTimeout(autoTriggerTimeout);
+      if (transitionTimeout) clearTimeout(transitionTimeout);
+    };
+  }, [isAutoScanEnabled, isScanning, scanSuccessResult, selectedDemoTeacher, teachers.length, isClockIn, useRealCamera, autoScannedTeacherId]);
   const getAvatarGradient = (photoKey: string) => {
     if (photoKey.startsWith('data:image')) {
       return null; // Render actual image
@@ -685,13 +744,59 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
               />
             ) : (
               /* High fidelity digital background vector layout when camera is off */
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
-                <div className="w-28 h-28 rounded-full border border-slate-700 bg-slate-800/40 flex items-center justify-center mb-4 text-indigo-400 border-dashed animate-pulse">
-                  <UserCheck className="w-12 h-12 stroke-[1.5]" />
-                </div>
-                <p className="text-slate-400 text-xs text-center max-w-xs px-4">
-                  Menggunakan Modul Pengenalan Wajah Virtual. Nyalakan kamera fisik untuk scan wajah asli Anda.
-                </p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 overflow-hidden">
+                {selectedDemoTeacher ? (
+                  <div className="flex flex-col items-center justify-center animate-fadeIn p-4" id="virtual-face-viewport">
+                    {(() => {
+                      const teacherObj = teachers.find(t => t.id === selectedDemoTeacher);
+                      // Fallback dummy for AUTO mode
+                      const displayObj = teacherObj || (selectedDemoTeacher === 'AUTO' && teachers[0]) || null;
+                      if (displayObj) {
+                        return (
+                          <>
+                            <div className={`w-32 h-32 rounded-full flex items-center justify-center bg-gradient-to-r ${getAvatarGradient(displayObj.photo) || 'from-indigo-600 to-indigo-850'} overflow-hidden border-4 border-indigo-500 shadow-2xl mb-3 relative animate-pulse`}>
+                              {displayObj.photo.startsWith('data:image') ? (
+                                <img 
+                                  src={displayObj.photo} 
+                                  alt={displayObj.name} 
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <span className="text-3xl font-sans font-black text-white">
+                                  {displayObj.name.split(' ').map((n, i) => i < 2 ? n[0] : '').join('')}
+                                </span>
+                              )}
+                              {/* Glowing scanner filter overlay */}
+                              <div className="absolute inset-0 bg-indigo-500/10 pointer-events-none"></div>
+                            </div>
+                            <h4 className="text-white text-sm font-bold tracking-wide uppercase text-center max-w-[240px] truncate">{displayObj.name}</h4>
+                            <p className="text-slate-400 text-[10px] uppercase font-mono tracking-widest mt-0.5">{displayObj.subject}</p>
+                            <span className="text-emerald-400 text-[9px] bg-emerald-950/60 border border-emerald-900/40 px-2.5 py-0.5 rounded-full mt-2 font-bold font-mono tracking-wider animate-pulse flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                              SENSING: WAJAH TERDETEKSI
+                            </span>
+                          </>
+                        );
+                      }
+                      return (
+                        <div className="w-24 h-24 rounded-full border border-slate-700 bg-slate-800/40 flex items-center justify-center mb-4 text-indigo-400 border-dashed animate-pulse">
+                          <UserCheck className="w-10 h-10 stroke-[1.5]" />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-6 animate-fadeIn" id="virtual-waiting-viewport">
+                    <div className="w-24 h-24 rounded-full border-2 border-slate-800 bg-slate-950/40 flex items-center justify-center mb-4 text-slate-600 border-dashed animate-pulse">
+                      <UserCheck className="w-10 h-10 stroke-[1.2]" />
+                    </div>
+                    <h4 className="text-slate-350 text-xs font-black uppercase tracking-widest">Kamera Siap Mendeteksi</h4>
+                    <p className="text-slate-500 text-[10px] leading-relaxed max-w-[280px] mt-1 italic">
+                      Silakan pilih Nama dewan Guru di panel sebelah kanan untuk meletakkan wajah di depan kamera sensor biometrik.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -867,8 +972,16 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
            {/* Status Message Line below scan box */}
           <div className="mt-3 text-center animate-fadeIn" id="scan-status-indicator">
             <p className="text-[11px] font-mono tracking-widest text-slate-500 uppercase">PANDUAN PEMINDAIAN</p>
-            <p className="text-indigo-400 text-xs font-medium mt-0.5">
-              {isScanning ? scanStatusMessage : "Hadapkan muka ke kamera, lalu pilih Nama Guru di panel kanan untuk mensimulasikan scan"}
+            <p className="text-indigo-400 text-xs font-semibold mt-0.5">
+              {isScanning 
+                ? scanStatusMessage 
+                : scanSuccessResult 
+                  ? "✓ Presensi berhasil tercatat!" 
+                  : isAutoScanEnabled 
+                    ? (!selectedDemoTeacher 
+                        ? "📸 WAJAH KOSONG: Pilih nama guru di panel kanan untuk mendeteksi wajah didepan sensor..." 
+                        : "🟢 WAJAH TERDETEKSI: Mengaktifkan pemindaian otomatis biometrik secara hands-free...") 
+                    : "Pilih Nama Guru di panel sebelah kanan dan tekan PINDAI SEKARANG."}
             </p>
           </div>
 
@@ -1160,6 +1273,31 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
           </p>
 
           <div className="space-y-4" id="demo-form">
+            {/* TOGGLE PINDAI OTOMATIS (SENSOR MODE) */}
+            <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm" id="auto-scan-toggle-container">
+              <div className="flex gap-2.5 items-center">
+                <div className={`p-1.5 rounded-lg shrink-0 ${isAutoScanEnabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-slate-800 text-xs font-bold leading-tight flex items-center gap-1">
+                    Pindai Otomatis
+                    {isAutoScanEnabled && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 leading-normal mt-0.5">Otomatis presensi saat wajah guru tertangkap kamera</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={isAutoScanEnabled}
+                  onChange={(e) => setIsAutoScanEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">PILIH GURU UNTUK DISCAN</label>
               <div className="relative">
@@ -1170,7 +1308,8 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white font-medium"
                   id="dropdown-demo-teacher"
                 >
-                  <option value="AUTO" className="font-semibold text-indigo-700">🔍 AUTO DETECT (Acak Sesuai Presensi)</option>
+                  <option value="">-- Letakkan Wajah Guru di Depan Kamera --</option>
+                  <option value="AUTO" className="font-semibold text-indigo-700">🔍 AUTO DETECT (Acak Profil Wajah)</option>
                   {teachers.map(t => (
                     <option key={t.id} value={t.id}>
                       {t.name} ({t.subject})
