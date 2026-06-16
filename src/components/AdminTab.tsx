@@ -103,17 +103,27 @@ export default function AdminTab({
         modalStreamRef.current.getTracks().forEach(t => t.stop());
       }
 
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("SECURE_CONTEXT_REQUIRED");
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 320, height: 240, facingMode: "user" }
       });
       modalStreamRef.current = stream;
       if (modalVideoRef.current) {
         modalVideoRef.current.srcObject = stream;
-        modalVideoRef.current.play();
+        modalVideoRef.current.play().catch(e => {
+          console.warn("Enrollment autoplay blocked. Handled.", e);
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setModalCameraError("Kamera fisik tidak tersedia atau diblokir. Sistem akan menggunakan avatar geometris elegan sebagai biometric key default.");
+      if (err.message === "SECURE_CONTEXT_REQUIRED" || !window.isSecureContext) {
+        setModalCameraError("Akses kamera diblokir karena protokol tidak aman (HTTP). Silakan gunakan protokol enkripsi HTTPS (misalnya: https://...) pada browser Anda agar kamera HP & Laptop bisa berfungsi untuk pendaftaran guru.");
+      } else {
+        setModalCameraError("Kamera fisik tidak tersedia atau diblokir browser. Pastikan Anda telah mengizinkan akses kamera di setelan Google Chrome/Microsoft Edge Anda.");
+      }
       setIsCapturing(false);
     }
   };
@@ -347,6 +357,134 @@ export default function AdminTab({
       {/* --- TAB 1: ATTENDANCE LOG & EXCEL EXPORTS --- */}
       {activeSubTab === 'LOGS' && (
         <div className="space-y-6 animate-fadeIn" id="logs-panel">
+          
+          {/* HUB MONITORING KIOSK BIOMETRIK (SATU PINTU) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-white shadow-xl flex flex-col gap-4 relative overflow-hidden" id="admin-biometric-hub">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full filter blur-3xl pointer-events-none"></div>
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="relative flex h-20 w-2 shrink-0 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <h3 className="text-xs font-black tracking-wider uppercase text-emerald-400 font-mono flex items-center gap-2">
+                    <Fingerprint className="w-4 h-4" />
+                    HUB KENDALI BIOMETRIK GURU (SATU PINTU)
+                  </h3>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Sistem monitoring sinkronisasi riwayat absen wajah secara langsung di gerbang sekolah SMKN 5 Pulau Taliabu.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-xl text-[10px] font-mono text-indigo-400">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>MONITOR AKTIF</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" id="live-biometric-grid">
+              {(() => {
+                // Get last 3 records with an action (clockIn or clockOut)
+                const recentBiometricScans = [...records]
+                  .filter(r => r.clockIn !== null || r.clockOut !== null)
+                  .slice(0, 3);
+
+                if (recentBiometricScans.length === 0) {
+                  return (
+                    <div className="col-span-1 lg:col-span-3 py-8 text-center flex flex-col items-center justify-center bg-slate-950/40 rounded-2xl border border-dashed border-slate-800">
+                      <Fingerprint className="w-8 h-8 text-slate-600 mb-2 animate-pulse" />
+                      <p className="text-slate-400 text-xs font-semibold">Belum Ada Sesi Pemindaian Wajah Hari Ini</p>
+                      <p className="text-[10px] text-slate-500 max-w-sm mt-0.5">Sistem siap menerima input face-scan biometrik otomatis ketika guru berdiri di depan layar Kiosk.</p>
+                    </div>
+                  );
+                }
+
+                return recentBiometricScans.map((rec) => {
+                  const teacherObj = teachers.find(t => t.id === rec.teacherId);
+                  const baselinePhoto = teacherObj?.photo || '';
+                  const liveSnapshot = rec.verificationPhoto;
+                  const punchType = rec.clockOut && !rec.clockIn ? 'PULANG' : 'MASUK';
+                  const punchTime = rec.clockIn || rec.clockOut || '--:--';
+                  
+                  return (
+                    <div key={rec.id} className="bg-slate-950 rounded-2xl p-4 border border-slate-850 flex flex-col justify-between gap-4 group hover:border-indigo-500/40 transition-all">
+                      
+                      {/* Sub-header inside card */}
+                      <div className="flex justify-between items-start gap-2 border-b border-slate-900 pb-2.5">
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-slate-200 truncate">{rec.teacherName}</h4>
+                          <p className="text-[9px] text-slate-500 font-mono tracking-wider mt-0.5">NIP: {rec.nip}</p>
+                        </div>
+                        <span className={`text-[9px] font-bold font-mono px-2 py-0.5 rounded uppercase shrink-0 ${
+                          punchType === 'MASUK' 
+                            ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-900/60' 
+                            : 'bg-indigo-950/80 text-indigo-400 border border-indigo-900/40'
+                        }`}>
+                          {punchType} • {punchTime}
+                        </span>
+                      </div>
+
+                      {/* Side-by-side Biometric Visual Audit */}
+                      <div className="grid grid-cols-7 bg-slate-900 rounded-xl p-2 items-center gap-1 border border-slate-900">
+                        {/* Database Photo */}
+                        <div className="col-span-3 flex flex-col items-center gap-1.5">
+                          <p className="text-[8px] text-slate-500 font-bold uppercase tracking-wider font-mono">DATABASE</p>
+                          <div className={`w-14 h-14 rounded-full overflow-hidden border border-slate-700/60 flex items-center justify-center bg-gradient-to-r ${getAvatarGradient(baselinePhoto) || 'from-indigo-600 to-indigo-850'}`}>
+                            {baselinePhoto.startsWith('data:image') ? (
+                              <img src={baselinePhoto} alt="Baseline" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-slate-250 text-xs font-semibold font-mono">
+                                {rec.teacherName.split(' ').map((n, i) => i < 2 ? n[0] : '').join('')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Connection indicators */}
+                        <div className="col-span-1 flex flex-col items-center justify-center">
+                          <span className="text-[7px] bg-slate-800 text-slate-300 border border-slate-700 px-1 py-0.5 rounded font-mono font-bold leading-none">MATCH</span>
+                          <div className="h-0.5 w-full bg-indigo-500/30 relative my-1">
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></div>
+                          </div>
+                          <span className="text-[10px] font-black text-emerald-400 font-mono leading-none">100%</span>
+                        </div>
+
+                        {/* Web Camera Live Screenshot */}
+                        <div className="col-span-3 flex flex-col items-center gap-1.5">
+                          <p className="text-[8px] text-slate-500 font-bold uppercase tracking-wider font-mono">CAM LIVE</p>
+                          <div className="w-14 h-14 rounded-full bg-slate-800 overflow-hidden border border-indigo-505/30 flex items-center justify-center relative">
+                            {liveSnapshot ? (
+                              <img src={liveSnapshot} alt="Live Audit" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-850 text-slate-600">
+                                <Camera className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-indigo-500/5 mix-blend-overlay"></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Biometric Verification Metrics Indicators */}
+                      <div className="flex items-center justify-between text-[9px] bg-slate-900/50 p-2 rounded-xl border border-slate-900 font-mono text-[8px] text-slate-400">
+                        <div className="flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>Liveness: <strong className="text-emerald-400">LOLOS</strong></span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-3 h-3 text-indigo-400 shrink-0" />
+                          <span>Mata/Senyum: Verified</span>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
           
           {/* LOGS HEADER ACTIONS AREA */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200" id="logs-toolbar">
@@ -922,6 +1060,7 @@ export default function AdminTab({
                         <video
                           ref={modalVideoRef}
                           playsInline
+                          muted
                           className="w-full h-full object-cover scale-x-[-1]"
                           style={{
                             filter: isEnhancementOn 

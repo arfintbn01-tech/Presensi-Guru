@@ -157,6 +157,10 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
         streamRef.current.getTracks().forEach(track => track.stop());
       }
 
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("SECURE_CONTEXT_REQUIRED");
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           width: { ideal: 640 }, 
@@ -168,12 +172,18 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch(e => {
+          console.warn("Autoplay was blocked by browser. Handled gracefully.", e);
+        });
         setUseRealCamera(true);
       }
     } catch (err: any) {
       console.error("Camera access failed", err);
-      setCameraError("Kamera hardware tidak dapat diakses atau diblokir. Menggunakan generator simulasi wajah AI super jernih.");
+      if (err.message === "SECURE_CONTEXT_REQUIRED" || !window.isSecureContext) {
+        setCameraError("Akses kamera diblokir karena protokol tidak aman (HTTP). Silakan gunakan protokol enkripsi HTTPS (misalnya: https://...) pada browser Google Chrome atau Microsoft Edge Anda agar kamera HP & Laptop bisa berfungsi.");
+      } else {
+        setCameraError("Kamera hardware tidak dapat diakses atau diblokir browser. Pastikan izin kamera diatur ke 'Izinkan' (Allow) pada browser Anda.");
+      }
       setUseRealCamera(false);
     }
   };
@@ -537,6 +547,7 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
             // Auto-hide success overlay after 4.5 seconds
             setTimeout(() => {
               setScanSuccessResult(null);
+              setSelectedDemoTeacher('');
               setScanStatusMessage("Siap memindai wajah Anda");
               setLivenessStage('IDLE');
             }, 4500);
