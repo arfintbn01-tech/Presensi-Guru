@@ -161,13 +161,21 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
         throw new Error("SECURE_CONTEXT_REQUIRED");
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          width: { ideal: 640 }, 
-          height: { ideal: 480 },
-          facingMode: "user" 
-        }
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 },
+            facingMode: "user" 
+          }
+        });
+      } catch (cameraConstraintError) {
+        console.warn("Retrying simple video constraints for broader compatibility:", cameraConstraintError);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true
+        });
+      }
       
       streamRef.current = stream;
       if (videoRef.current) {
@@ -744,6 +752,7 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
             {useRealCamera ? (
               <video 
                 ref={videoRef}
+                autoPlay
                 playsInline
                 muted
                 className="absolute inset-x-0 w-full h-full object-cover scale-x-[-1]"

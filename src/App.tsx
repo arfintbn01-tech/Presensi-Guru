@@ -311,11 +311,9 @@ export default function App() {
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200" id="view-mode-tabs">
             <button
               onClick={() => {
-                if (config.isPinEnabled) {
-                  setIsAdminAuthenticated(false); // Auto lock on moving away
-                  setPinInput('');
-                  setPinError(null);
-                }
+                setIsAdminAuthenticated(false); // Auto lock on moving away for secure environment
+                setPinInput('');
+                setPinError(null);
                 setCurrentTab('KIOSK');
               }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -340,12 +338,10 @@ export default function App() {
             >
               <LayoutDashboard className="w-4 h-4 text-indigo-600" />
               <span>DASHBOARD</span>
-              {config.isPinEnabled && (
-                isAdminAuthenticated ? (
-                  <Unlock className="w-3.5 h-3.5 text-emerald-500 animate-pulse shrink-0 ml-0.5" />
-                ) : (
-                  <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-0.5" />
-                )
+              {isAdminAuthenticated ? (
+                <Unlock className="w-3.5 h-3.5 text-emerald-500 animate-pulse shrink-0 ml-0.5" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-0.5" />
               )}
             </button>
           </div>
@@ -354,7 +350,7 @@ export default function App() {
       </header>
 
       {/* ADMIN STATS BENTO GRID (Visible on Admin dashboard for instant overview) */}
-      {currentTab === 'ADMIN' && (isAdminAuthenticated || !config.isPinEnabled) && (
+      {currentTab === 'ADMIN' && isAdminAuthenticated && (
         <section className="max-w-7xl mx-auto w-full px-4 sm:px-8 pt-8 animate-fadeIn" id="dashboard-analytics-hud">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             
@@ -425,7 +421,7 @@ export default function App() {
               onPunchAttendance={handlePunchAttendance}
             />
           </div>
-        ) : config.isPinEnabled && !isAdminAuthenticated ? (
+        ) : !isAdminAuthenticated ? (
           /* --- BEAUTIFUL SECURE PIN PAD INTERACTIVE LOCK SCREEN --- */
           <div className="max-w-[440px] mx-auto my-6 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 text-center shadow-xl animate-fadeIn" id="admin-lockpad-screen">
             <div className="w-16 h-16 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-inner">

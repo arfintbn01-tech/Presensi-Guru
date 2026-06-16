@@ -107,9 +107,18 @@ export default function AdminTab({
         throw new Error("SECURE_CONTEXT_REQUIRED");
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240, facingMode: "user" }
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 320, height: 240, facingMode: "user" }
+        });
+      } catch (cameraConstraintError) {
+        console.warn("Retrying native generic video fallback for enrollment:", cameraConstraintError);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true
+        });
+      }
+      
       modalStreamRef.current = stream;
       if (modalVideoRef.current) {
         modalVideoRef.current.srcObject = stream;
@@ -1059,6 +1068,7 @@ export default function AdminTab({
                       <div className="relative w-48 aspect-square bg-slate-950 rounded-2xl overflow-hidden border border-slate-800">
                         <video
                           ref={modalVideoRef}
+                          autoPlay
                           playsInline
                           muted
                           className="w-full h-full object-cover scale-x-[-1]"
