@@ -22,7 +22,7 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanStatusMessage, setScanStatusMessage] = useState<string>('Siap memindai wajah Anda');
   const [scanSuccessResult, setScanSuccessResult] = useState<{ teacher: Teacher; time: string; status: string; type: 'MASUK' | 'PULANG' } | null>(null);
-  const [isAutoScanEnabled, setIsAutoScanEnabled] = useState<boolean>(true);
+  const [isAutoScanEnabled, setIsAutoScanEnabled] = useState<boolean>(false);
   const [autoScannedTeacherId, setAutoScannedTeacherId] = useState<string>('');
 
   // Reset lock state when selection or checking mode changes
@@ -44,7 +44,7 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
   const [verifiedAntiSpoof, setVerifiedAntiSpoof] = useState<boolean>(false);
   
   // Camera feed states
-  const [useRealCamera, setUseRealCamera] = useState<boolean>(false);
+  const [useRealCamera, setUseRealCamera] = useState<boolean>(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -808,13 +808,25 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center p-6 animate-fadeIn" id="virtual-waiting-viewport">
-                    <div className="w-24 h-24 rounded-full border-2 border-slate-800 bg-slate-950/40 flex items-center justify-center mb-4 text-slate-600 border-dashed animate-pulse">
-                      <UserCheck className="w-10 h-10 stroke-[1.2]" />
+                    <div className="w-16 h-16 bg-gradient-to-tr from-slate-900 to-indigo-950 text-indigo-400 rounded-2xl flex items-center justify-center mb-4 shadow-xl border border-indigo-900/40 animate-pulse">
+                      <Camera className="w-7 h-7" />
                     </div>
-                    <h4 className="text-slate-350 text-xs font-black uppercase tracking-widest">Kamera Siap Mendeteksi</h4>
-                    <p className="text-slate-500 text-[10px] leading-relaxed max-w-[280px] mt-1 italic">
-                      Silakan pilih Nama dewan Guru di panel sebelah kanan untuk meletakkan wajah di depan kamera sensor biometrik.
+                    <h4 className="text-white text-xs font-black uppercase tracking-widest">Kamera Kios Belum Aktif</h4>
+                    <p className="text-slate-400 text-[10.5px] leading-relaxed max-w-[280px] mt-1">
+                      Kamera real-time HP atau Laptop siap digunakan secara otomatis. Hubungkan kamera di bawah ini:
                     </p>
+                    <button 
+                      onClick={() => {
+                        setCameraError(null);
+                        setUseRealCamera(true);
+                      }}
+                      className="mt-3.5 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 active:scale-95 transition-all cursor-pointer border border-indigo-500/30"
+                      id="inner-camera-enable-btn"
+                    >
+                      <Camera className="w-4 h-4 text-white" />
+                      <span>AKTIFKAN KAMERA DEPAN</span>
+                    </button>
+                    <p className="text-[9px] text-slate-500 mt-2 font-mono italic">Atau pilih Nama Guru di samping untuk simulator biometrik digital</p>
                   </div>
                 )}
               </div>
