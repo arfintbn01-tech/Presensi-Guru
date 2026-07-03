@@ -92,7 +92,7 @@ export default function App() {
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
-    return getSeedRecords(DEFAULTS_TEACHERS);
+    return []; // Clean slate for production-ready use
   });
 
   // Save states to local storage on changes
@@ -265,12 +265,12 @@ export default function App() {
 
   // Reset persistent database to factory settings
   const handleResetToDefault = () => {
-    if (confirm("Apakah Anda yakin ingin menyetel ulang database kembali ke data contoh bawaan? Semua presensi baru akan terhapus.")) {
+    if (confirm("Apakah Anda yakin ingin menyetel ulang database? Semua rekam presensi baru dan lama akan dibersihkan agar aplikasi siap digunakan dari awal.")) {
       localStorage.removeItem('taliabu_teachers');
       localStorage.removeItem('taliabu_attendance');
       localStorage.removeItem('taliabu_config');
       setTeachers(DEFAULTS_TEACHERS);
-      setRecords(getSeedRecords(DEFAULTS_TEACHERS));
+      setRecords([]); // Reset to clean logs
       setConfig({
         schoolName: "SMK Negeri 5 Pulau Taliabu",
         clockInStart: "06:30",
