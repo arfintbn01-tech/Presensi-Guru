@@ -18,12 +18,30 @@ interface KioskTabProps {
 export default function KioskTab({ teachers, records, config, onPunchAttendance }: KioskTabProps) {
   const [isClockIn, setIsClockIn] = useState<boolean>(true);
   const [selectedDemoTeacher, setSelectedDemoTeacher] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanStatusMessage, setScanStatusMessage] = useState<string>('Siap memindai wajah Anda');
   const [scanSuccessResult, setScanSuccessResult] = useState<{ teacher: Teacher; time: string; status: string; type: 'MASUK' | 'PULANG' } | null>(null);
   const [isAutoScanEnabled, setIsAutoScanEnabled] = useState<boolean>(false);
   const [autoScannedTeacherId, setAutoScannedTeacherId] = useState<string>('');
+
+  // Synchronize searchQuery with selectedDemoTeacher
+  useEffect(() => {
+    if (selectedDemoTeacher) {
+      if (selectedDemoTeacher === 'AUTO') {
+        setSearchQuery('🔍 DETEKSI WAJAH OTOMATIS (Acak Profil)');
+      } else {
+        const matched = teachers.find(t => t.id === selectedDemoTeacher);
+        if (matched) {
+          setSearchQuery(matched.name);
+        }
+      }
+    } else {
+      setSearchQuery('');
+    }
+  }, [selectedDemoTeacher, teachers]);
 
   // Reset lock state when selection or checking mode changes
   useEffect(() => {
@@ -1055,6 +1073,21 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
             </div>
           </div>
 
+          {/* CHROMIUM & EDGE BROWSER COMPATIBILITY GUIDE */}
+          <div className="w-full max-w-[500px] mt-3.5 p-3.5 rounded-2xl bg-slate-900/45 border border-slate-800/80 text-left text-slate-400" id="browser-camera-guide-card">
+            <h5 className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5 font-sans">
+              <Shield className="w-3.5 h-3.5 text-indigo-400" />
+              Optimalisasi Google Chrome & Microsoft Edge
+            </h5>
+            <p className="text-[9.5px] leading-relaxed text-slate-400">
+              Aplikasi presensi biometrik ini sepenuhnya dioptimalkan untuk performa tinggi pada browser <strong className="text-white">Google Chrome</strong> dan <strong className="text-white">Microsoft Edge</strong> (di Laptop, PC, Android, atau iPhone):
+            </p>
+            <ul className="list-disc list-inside text-[9px] mt-1 space-y-0.5 text-slate-500 font-sans">
+              <li><strong className="text-slate-350">Izin Kamera:</strong> Klik ikon <strong className="text-slate-350">Gembok / Info Situs (Lock Icon)</strong> di sebelah kiri alamat URL web browser Anda, lalu ubah izin <strong className="text-emerald-500">Kamera (Camera)</strong> ke posisi <strong className="text-emerald-500">"Izinkan" (Allow)</strong>.</li>
+              <li><strong className="text-slate-350">Protokol Keamanan:</strong> Pastikan Anda mengakses aplikasi menggunakan tautan aman <strong className="text-indigo-400">HTTPS</strong> agar browser tidak memblokir akses ke hardware kamera biometrik HP/PC Anda.</li>
+            </ul>
+          </div>
+
           {/* PREMIUM CAMERA LIGHT TUNER PANEL */}
           <div className="w-full max-w-[500px] mt-5 p-4 rounded-2xl bg-slate-900 border border-slate-800 text-slate-350 shadow-inner" id="camera-effects-panel">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3 border-b border-slate-800/80 pb-2.5">
@@ -1331,23 +1364,109 @@ export default function KioskTab({ teachers, records, config, onPunchAttendance 
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">PILIH GURU UNTUK DISCAN</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">PENCARIAN NAMA GURU (KETIK UNTUK MENCARI)</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <select
-                  value={selectedDemoTeacher}
-                  onChange={(e) => setSelectedDemoTeacher(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white font-medium"
-                  id="dropdown-demo-teacher"
-                >
-                  <option value="">-- Letakkan Wajah Guru di Depan Kamera --</option>
-                  <option value="AUTO" className="font-semibold text-indigo-700">🔍 AUTO DETECT (Acak Profil Wajah)</option>
-                  {teachers.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.subject})
-                    </option>
-                  ))}
-                </select>
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+                <input
+                  type="text"
+                  placeholder={teachers.length === 0 ? "⚠️ Belum ada guru terdaftar di database" : "Cari nama, NIP, atau mata pelajaran..."}
+                  value={searchQuery}
+                  disabled={teachers.length === 0}
+                  onFocus={() => setIsDropdownOpen(true)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsDropdownOpen(true);
+                    // Clear select if value doesn't match current selected teacher name
+                    if (selectedDemoTeacher) {
+                      const currentT = teachers.find(t => t.id === selectedDemoTeacher);
+                      if (currentT && e.target.value !== currentT.name) {
+                        setSelectedDemoTeacher('');
+                      }
+                    }
+                  }}
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all font-semibold shadow-inner"
+                  id="search-teacher-input"
+                />
+
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDemoTeacher('');
+                      setSearchQuery('');
+                      setIsDropdownOpen(false);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition-all cursor-pointer z-20"
+                    id="clear-search-btn"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+
+                {/* Click away layer to dismiss suggestions panel */}
+                {isDropdownOpen && (
+                  <div 
+                    className="fixed inset-0 z-35 cursor-default" 
+                    onClick={() => setIsDropdownOpen(false)}
+                  />
+                )}
+
+                {/* Suggestions list dropdown */}
+                {isDropdownOpen && teachers.length > 0 && (
+                  <div 
+                    className="absolute z-40 w-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100"
+                    id="search-suggestions-dropdown"
+                  >
+                    {/* Suggestions list of teachers */}
+                    {(() => {
+                      const query = searchQuery.toLowerCase();
+                      const filtered = teachers.filter(t => 
+                        t.name.toLowerCase().includes(query) ||
+                        (t.nip && t.nip.toLowerCase().includes(query)) ||
+                        t.subject.toLowerCase().includes(query)
+                      );
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="p-4 text-center text-xs text-slate-400 italic font-sans">
+                            Nama guru tidak ditemukan
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(t => {
+                        const isSelected = selectedDemoTeacher === t.id;
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => {
+                              setSelectedDemoTeacher(t.id);
+                              setSearchQuery(t.name);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer transition-all text-left ${
+                              isSelected ? 'bg-indigo-50/40 border-l-4 border-indigo-500 pl-3' : ''
+                            }`}
+                          >
+                            <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-tr ${getAvatarGradient(t.photo) || 'from-indigo-600 to-indigo-850'} text-white overflow-hidden text-[10px] font-bold font-sans`}>
+                              {t.photo.startsWith('data:image') ? (
+                                <img src={t.photo} alt={t.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span>{t.name.split(' ').map((n, i) => i < 2 ? n[0] : '').join('')}</span>
+                              )}
+                            </div>
+                            <div className="text-left min-w-0 flex-1">
+                              <p className="text-slate-800 font-bold text-xs truncate font-sans">{t.name}</p>
+                              <p className="text-[9.5px] text-slate-500 font-mono truncate">NIP. {t.nip || '-'} • {t.subject}</p>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 

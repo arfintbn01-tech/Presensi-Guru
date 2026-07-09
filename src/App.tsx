@@ -58,7 +58,7 @@ export default function App() {
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
-    return DEFAULTS_TEACHERS;
+    return []; // Empty by default for active production enrollment
   });
 
   // School config
@@ -269,7 +269,7 @@ export default function App() {
       localStorage.removeItem('taliabu_teachers');
       localStorage.removeItem('taliabu_attendance');
       localStorage.removeItem('taliabu_config');
-      setTeachers(DEFAULTS_TEACHERS);
+      setTeachers([]);
       setRecords([]); // Reset to clean logs
       setConfig({
         schoolName: "SMK Negeri 5 Pulau Taliabu",
