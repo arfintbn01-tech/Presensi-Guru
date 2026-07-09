@@ -944,9 +944,125 @@ export default function AdminTab({
         </div>
       )}
 
+      {/* --- PUSAT KENDALI SATU PINTU & VERCEL PUBLISH INTEGRATION --- */}
+      {activeSubTab === 'CONFIG' && (
+        <div className="space-y-6 max-w-2xl mt-6 animate-fadeIn" id="one-gate-control-center">
+          
+          {/* CONTROL CENTER BOARD */}
+          <div className="bg-slate-950 border border-slate-850 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden" id="one-gate-dashboard-card">
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-600/10 rounded-full filter blur-3xl pointer-events-none"></div>
+            
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-5">
+              <div className="p-2.5 bg-indigo-500/15 text-indigo-400 rounded-xl border border-indigo-500/25">
+                <ShieldCheck className="w-5 h-5 text-indigo-450 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black tracking-wider uppercase text-white font-sans">PUSAT KENDALI SATU PINTU (INTEGRATED SYSTEM GATEWAY)</h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">Seluruh kontrol administrasi, pengelolaan basis data, dan publikasi server diatur terpusat di satu gerbang.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              {/* DOOR 1: BIOMETRIC REGISTRATION */}
+              <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-indigo-950/80 border border-indigo-900 text-indigo-400 rounded-lg font-mono text-xs font-black shrink-0">
+                  01
+                </div>
+                <div className="min-w-0 text-left">
+                  <h5 className="text-slate-200 text-xs font-bold font-sans">Database & Biometrik Guru</h5>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
+                    Registrasi profil guru baru, perekaman sensor titik wajah biometrik 3D, serta manajemen penghapusan data secara aman dan permanen.
+                  </p>
+                </div>
+              </div>
+
+              {/* DOOR 2: SCHEDULING CONFIG */}
+              <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-emerald-950/80 border border-emerald-900 text-emerald-400 rounded-lg font-mono text-xs font-black shrink-0">
+                  02
+                </div>
+                <div className="min-w-0 text-left">
+                  <h5 className="text-slate-200 text-xs font-bold font-sans">Jam Kerja & Batas Presensi</h5>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
+                    Atur jam masuk, penanda toleransi datang terlambat, waktu pulang, serta opsi proteksi PIN kode enkripsi untuk masuk ke menu admin.
+                  </p>
+                </div>
+              </div>
+
+              {/* DOOR 3: EXPORTS & AUDITS */}
+              <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-amber-950/80 border border-amber-900 text-amber-400 rounded-lg font-mono text-xs font-black shrink-0">
+                  03
+                </div>
+                <div className="min-w-0 text-left">
+                  <h5 className="text-slate-200 text-xs font-bold font-sans">Rekap Dinas & Bukti Foto</h5>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
+                    Ekspor seluruh log presensi ke berkas cetak Excel (.xlsx) resmi dan tonton rekam audit visual foto wajah serta status liveness deteksi.
+                  </p>
+                </div>
+              </div>
+
+              {/* DOOR 4: VERCEL PUBLISHING READY */}
+              <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-rose-950/80 border border-rose-900 text-rose-450 rounded-lg font-mono text-xs font-black shrink-0">
+                  04
+                </div>
+                <div className="min-w-0 text-left">
+                  <h5 className="text-slate-200 text-xs font-bold font-sans">Publikasi Cloud Vercel</h5>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
+                    Konfigurasi <strong className="text-rose-400">vercel.json</strong> telah terintegrasi di sistem agar aplikasi dapat diakses publik kapan saja dengan performa tinggi.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* VERCEL PUBLISHING GUIDE CARD */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm" id="vercel-deployment-guide-card">
+            <div className="flex items-center gap-3 border-b border-indigo-50 pb-4 mb-4">
+              <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl">
+                <RefreshCw className="w-5 h-5 text-indigo-650 animate-spin" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-slate-850 text-xs font-bold uppercase tracking-wider">SIAP DIPUBLIKASIKAN KE CLOUD VERCEL</h4>
+                <p className="text-slate-500 text-[11px] leading-tight mt-0.5">Panduan integrasi satu langkah untuk mengunggah aplikasi absensi online secara permanen.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-left text-slate-600 text-xs leading-relaxed font-sans">
+              <p>
+                Kami telah menyematkan berkas <strong className="text-slate-900 font-semibold">vercel.json</strong> yang dioptimalkan khusus untuk web browser Google Chrome dan Microsoft Edge. Ikuti instruksi di bawah ini untuk mempublikasikan sistem Anda secara gratis ke Vercel:
+              </p>
+
+              <div className="bg-slate-950 text-slate-300 p-4 rounded-2xl border border-slate-850 font-mono text-[10.5px] space-y-2.5 leading-relaxed relative">
+                <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-2 text-[9px] uppercase tracking-widest text-indigo-400">
+                  <span>⚙️ KONFIGURASI VERCEL AKTIF (vercel.json)</span>
+                  <span className="text-emerald-400 font-bold">✓ READY TO DEPLOY</span>
+                </div>
+                <p className="text-indigo-300 font-bold">// 3 Langkah Mudah Publikasi Satu Pintu:</p>
+                <p><strong className="text-white">Langkah 1:</strong> Hubungkan repositori GitHub Anda ke akun <a href="https://vercel.com" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline hover:text-indigo-300 font-bold">Vercel.com</a>.</p>
+                <p><strong className="text-white">Langkah 2:</strong> Pilih proyek aplikasi absensi ini di Vercel Dashboard, lalu klik tombol <strong className="text-emerald-400">"Deploy"</strong>.</p>
+                <p><strong className="text-white">Langkah 3:</strong> Vercel akan otomatis membaca file <strong className="text-indigo-300">vercel.json</strong> untuk merutekan seluruh halaman secara aman tanpa eror 404.</p>
+              </div>
+
+              <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-150 rounded-xl p-3 text-[11px] text-indigo-700">
+                <span className="text-lg">💡</span>
+                <p>
+                  <strong className="font-bold">Tips Biometrik:</strong> Setelah dideploy ke domain kustom Anda di Vercel, pastikan browser Chrome atau Microsoft Edge telah diberikan izin akses Kamera HP/Laptop (melalui gembok browser) dan menggunakan protokol aman <strong className="font-bold">HTTPS</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
       {/* --- DEVELOPER SYSTEM INFO CARD --- */}
       {activeSubTab === 'CONFIG' && (
         <div className="mt-6 bg-slate-900 border border-slate-800 text-slate-350 rounded-3xl p-6 max-w-2xl shadow-xl animate-fadeIn flex flex-col sm:flex-row gap-5 items-center" id="developer-credits-card">
+
           <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-550/30 rounded-2xl flex items-center justify-center text-indigo-400 shrink-0 shadow-inner">
             <Shield className="w-8 h-8 animate-pulse text-indigo-505" />
           </div>
