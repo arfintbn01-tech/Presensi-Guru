@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Teacher, AttendanceRecord, SchoolConfig } from '../types';
 import { exportAttendanceToExcel } from '../utils/excelExport';
+import { FirebaseConfigCredentials, migrateLocalToCloud } from '../utils/firebase';
 
 interface AdminTabProps {
   teachers: Teacher[];
@@ -21,6 +22,9 @@ interface AdminTabProps {
   onUpdateConfig: (config: SchoolConfig) => void;
   onAddManualRecord: (record: Omit<AttendanceRecord, 'id'>) => void;
   onDeleteRecord: (id: string) => void;
+  firebaseConfig: FirebaseConfigCredentials | null;
+  setFirebaseConfig: (cfg: FirebaseConfigCredentials | null) => void;
+  isCloudActive: boolean;
 }
 
 export default function AdminTab({
@@ -31,7 +35,10 @@ export default function AdminTab({
   onDeleteTeacher,
   onUpdateConfig,
   onAddManualRecord,
-  onDeleteRecord
+  onDeleteRecord,
+  firebaseConfig,
+  setFirebaseConfig,
+  isCloudActive
 }: AdminTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<'LOGS' | 'DATABASE' | 'CONFIG'>('LOGS');
   
@@ -68,6 +75,28 @@ export default function AdminTab({
   const [formClockOutTime, setFormClockOutTime] = useState(config.clockOutTime);
   const [formAdminPin, setFormAdminPin] = useState(config.adminPin || '1234');
   const [formIsPinEnabled, setFormIsPinEnabled] = useState(config.isPinEnabled ?? false);
+
+  // Firebase Sync states
+  const [fbApiKey, setFbApiKey] = useState(firebaseConfig?.apiKey || '');
+  const [fbAuthDomain, setFbAuthDomain] = useState(firebaseConfig?.authDomain || '');
+  const [fbProjectId, setFbProjectId] = useState(firebaseConfig?.projectId || '');
+  const [fbStorageBucket, setFbStorageBucket] = useState(firebaseConfig?.storageBucket || '');
+  const [fbMessagingSenderId, setFbMessagingSenderId] = useState(firebaseConfig?.messagingSenderId || '');
+  const [fbAppId, setFbAppId] = useState(firebaseConfig?.appId || '');
+  const [rawJsonInput, setRawJsonInput] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  // Auto populate state when firebaseConfig updates from props
+  useEffect(() => {
+    if (firebaseConfig) {
+      setFbApiKey(firebaseConfig.apiKey || '');
+      setFbAuthDomain(firebaseConfig.authDomain || '');
+      setFbProjectId(firebaseConfig.projectId || '');
+      setFbStorageBucket(firebaseConfig.storageBucket || '');
+      setFbMessagingSenderId(firebaseConfig.messagingSenderId || '');
+      setFbAppId(firebaseConfig.appId || '');
+    }
+  }, [firebaseConfig]);
 
   // Camera references inside the modal face capture
   const modalVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -231,6 +260,100 @@ export default function AdminTab({
       isPinEnabled: formIsPinEnabled
     });
     alert("Konfigurasi sistem berhasil diperbarui!");
+  };
+
+  // Parse pasted Firebase config JSON block
+  const handleAutoParseJson = (jsonStr: string) => {
+    try {
+      let cleanStr = jsonStr.trim();
+      // Remove JS variable assignment stuff if copied from React template
+      if (cleanStr.startsWith('const firebaseConfig =')) {
+        cleanStr = cleanStr.replace('const firebaseConfig =', '').replace(';', '');
+      }
+      
+      // Parse JSON directly
+      const parsed = JSON.parse(cleanStr);
+      if (parsed.projectId) {
+        setFbApiKey(parsed.apiKey || '');
+        setFbAuthDomain(parsed.authDomain || '');
+        setFbProjectId(parsed.projectId || '');
+        setFbStorageBucket(parsed.storageBucket || '');
+        setFbMessagingSenderId(parsed.messagingSenderId || '');
+        setFbAppId(parsed.appId || '');
+        alert("Konfigurasi Firebase berhasil diurai otomatis!");
+      } else {
+        alert("JSON diurai tetapi properti 'projectId' tidak ditemukan.");
+      }
+    } catch (e) {
+      // Try function-eval for loose JS object notation copying
+      try {
+        const evalStr = `(${jsonStr.replace(/const\s+\w+\s*=\s*/g, '')})`;
+        const parsed = Function(`return ${evalStr}`)();
+        if (parsed && parsed.projectId) {
+          setFbApiKey(parsed.apiKey || '');
+          setFbAuthDomain(parsed.authDomain || '');
+          setFbProjectId(parsed.projectId || '');
+          setFbStorageBucket(parsed.storageBucket || '');
+          setFbMessagingSenderId(parsed.messagingSenderId || '');
+          setFbAppId(parsed.appId || '');
+          alert("Konfigurasi Firebase (JS Object) berhasil diurai otomatis!");
+          return;
+        }
+      } catch (err) {}
+      alert("Gagal mengurai teks konfigurasi. Harap periksa format teks JSON Anda atau isi formulir di bawah secara manual.");
+    }
+  };
+
+  const handleConnectFirebase = () => {
+    if (!fbProjectId || !fbApiKey) {
+      alert("Harap lengkapi setidaknya Project ID dan API Key!");
+      return;
+    }
+    const newCfg: FirebaseConfigCredentials = {
+      apiKey: fbApiKey.trim(),
+      authDomain: fbAuthDomain.trim(),
+      projectId: fbProjectId.trim(),
+      storageBucket: fbStorageBucket.trim(),
+      messagingSenderId: fbMessagingSenderId.trim(),
+      appId: fbAppId.trim()
+    };
+    setFirebaseConfig(newCfg);
+    alert("Koneksi Firebase berhasil dikonfigurasi! Data akan disinkronisasikan ke Cloud secara real-time.");
+  };
+
+  const handleDisconnectFirebase = () => {
+    if (confirm("Apakah Anda yakin ingin memutuskan sinkronisasi Cloud? Aplikasi akan kembali menggunakan penyimpanan offline lokal browser ini.")) {
+      setFirebaseConfig(null);
+      setFbApiKey('');
+      setFbAuthDomain('');
+      setFbProjectId('');
+      setFbStorageBucket('');
+      setFbMessagingSenderId('');
+      setFbAppId('');
+      setRawJsonInput('');
+    }
+  };
+
+  const handlePushLocalDataToCloud = async () => {
+    if (!firebaseConfig) {
+      alert("Silakan sambungkan konfigurasi Firebase terlebih dahulu!");
+      return;
+    }
+    if (teachers.length === 0 && records.length === 0) {
+      alert("Tidak ada data lokal yang perlu diunggah.");
+      return;
+    }
+    if (confirm(`Apakah Anda yakin ingin menyinkronkan data lokal saat ini (${teachers.length} guru & ${records.length} rekam absensi) ke Cloud Firestore? Data di cloud akan digabungkan/diperbarui.`)) {
+      setIsMigrating(true);
+      try {
+        await migrateLocalToCloud(firebaseConfig, teachers, records);
+        alert("🟢 SINKRONISASI SELESAI! Semua data lokal Anda kini tersimpan aman di Cloud Firestore.");
+      } catch (err: any) {
+        alert("Gagal menyinkronkan data ke Cloud: " + err.message);
+      } finally {
+        setIsMigrating(false);
+      }
+    }
   };
 
   // Submit manual log record
@@ -1014,6 +1137,153 @@ export default function AdminTab({
                     Konfigurasi <strong className="text-rose-400">vercel.json</strong> telah terintegrasi di sistem agar aplikasi dapat diakses publik kapan saja dengan performa tinggi.
                   </p>
                 </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* DATABASE CLOUD SYNC CONFIGURATION (GOOGLE FIREBASE) */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm" id="firebase-cloud-sync-card">
+            <div className="flex items-center justify-between border-b border-indigo-50 pb-4 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl">
+                  <Fingerprint className="w-5 h-5 text-indigo-650" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-slate-850 text-xs font-bold uppercase tracking-wider">KONEKSI & SINKRONISASI CLOUD (GOOGLE FIREBASE)</h4>
+                  <p className="text-slate-500 text-[11px] leading-tight mt-0.5">Sinkronkan database guru & absensi secara online real-time agar dapat diakses dari mana saja.</p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold tracking-wider uppercase flex items-center gap-1.5 ${
+                isCloudActive 
+                  ? 'bg-emerald-50 border border-emerald-250 text-emerald-700 animate-pulse' 
+                  : 'bg-amber-50 border border-amber-250 text-amber-700'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isCloudActive ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                {isCloudActive ? '🟢 TERHUBUNG CLOUD' : '🟡 OFFLINE STORAGE'}
+              </span>
+            </div>
+
+            <div className="space-y-4 text-left font-sans">
+              <p className="text-slate-600 text-xs leading-relaxed">
+                Secara default, aplikasi menyimpan guru yang diregistrasi di browser perangkat ini. Agar guru-guru yang Anda beri link Vercel dapat melihat nama mereka di HP masing-masing, hubungkan aplikasi ini ke database cloud gratis <strong className="text-slate-900 font-semibold">Google Firebase (Firestore)</strong> dengan menempelkan konfigurasinya di bawah:
+              </p>
+
+              {/* QUICK PASTE TEXTAREA */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <label className="block text-[10px] font-extrabold text-slate-700 uppercase tracking-widest mb-1">
+                  📋 CARA MUDAH: TEMPELKAN KODE FIREBASE CONFIG (JSON / JS OBJECT)
+                </label>
+                <p className="text-[10px] text-slate-400 mb-2 leading-tight">Salin seluruh blok objek "firebaseConfig" dari konsol Firebase dan tempelkan di bawah ini:</p>
+                <div className="flex gap-2">
+                  <textarea
+                    value={rawJsonInput}
+                    onChange={(e) => setRawJsonInput(e.target.value)}
+                    placeholder={`{\n  apiKey: "AIzaSy...",\n  authDomain: "...",\n  projectId: "...",\n  ...\n}`}
+                    rows={3}
+                    className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-xl text-[11px] font-mono focus:outline-none focus:border-indigo-500 placeholder-slate-350"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAutoParseJson(rawJsonInput)}
+                    className="px-4 py-2 bg-slate-850 hover:bg-slate-950 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 self-end"
+                  >
+                    Urai Teks
+                  </button>
+                </div>
+              </div>
+
+              {/* EXPANDABLE MANUAL FORM FIELDS */}
+              <div className="border border-slate-100 rounded-2xl p-4 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">KUNCI INTEGRASI MANUAL</span>
+                  <span className="text-[9px] text-indigo-650 bg-indigo-50 px-1.5 py-0.2 rounded font-medium">Auto-filled jika menggunakan Urai Teks</span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">PROJECT ID *</label>
+                    <input
+                      type="text"
+                      value={fbProjectId}
+                      onChange={(e) => setFbProjectId(e.target.value)}
+                      placeholder="taliabu-attendance-123"
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">API KEY *</label>
+                    <input
+                      type="password"
+                      value={fbApiKey}
+                      onChange={(e) => setFbApiKey(e.target.value)}
+                      placeholder="AIzaSyA..."
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">AUTH DOMAIN</label>
+                    <input
+                      type="text"
+                      value={fbAuthDomain}
+                      onChange={(e) => setFbAuthDomain(e.target.value)}
+                      placeholder="taliabu-attendance.firebaseapp.com"
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">APP ID</label>
+                    <input
+                      type="text"
+                      value={fbAppId}
+                      onChange={(e) => setFbAppId(e.target.value)}
+                      placeholder="1:12345678:web:abcdef"
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-3 justify-between items-center">
+                <div className="flex gap-2">
+                  {!isCloudActive ? (
+                    <button
+                      type="button"
+                      onClick={handleConnectFirebase}
+                      className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 uppercase"
+                    >
+                      <Check className="w-4 h-4" /> Hubungkan Cloud
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectFirebase}
+                      className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-150 text-red-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 uppercase"
+                    >
+                      <X className="w-4 h-4" /> Putus Koneksi
+                    </button>
+                  )}
+                </div>
+
+                {isCloudActive && (
+                  <button
+                    type="button"
+                    disabled={isMigrating}
+                    onClick={handlePushLocalDataToCloud}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isMigrating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" /> Menyinkronkan...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" /> Sinkron Data Lokal ke Cloud
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
             </div>

@@ -15,6 +15,16 @@ import { DEFAULTS_TEACHERS } from './data/defaultTeachers';
 import { getSeedRecords } from './data/seedData';
 import KioskTab from './components/KioskTab';
 import AdminTab from './components/AdminTab';
+import { 
+  FirebaseConfigCredentials,
+  saveTeacherToCloud, 
+  deleteTeacherFromCloud, 
+  saveAttendanceToCloud, 
+  deleteAttendanceFromCloud, 
+  subscribeTeachers, 
+  subscribeAttendance,
+  migrateLocalToCloud
+} from './utils/firebase';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'KIOSK' | 'ADMIN'>('KIOSK');
@@ -60,6 +70,54 @@ export default function App() {
     }
     return []; // Empty by default for active production enrollment
   });
+
+  // Firebase cloud sync credentials state
+  const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConfigCredentials | null>(() => {
+    const saved = localStorage.getItem('taliabu_firebase_config');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return null;
+  });
+
+  // Track database cloud connection status
+  const [isCloudActive, setIsCloudActive] = useState<boolean>(false);
+
+  // Live listener for teachers from Firestore
+  useEffect(() => {
+    if (firebaseConfig && firebaseConfig.projectId) {
+      setIsCloudActive(true);
+      const unsubscribe = subscribeTeachers(firebaseConfig, (cloudTeachers) => {
+        setTeachers(cloudTeachers);
+      });
+      return () => {
+        unsubscribe();
+      };
+    } else {
+      setIsCloudActive(false);
+    }
+  }, [firebaseConfig]);
+
+  // Live listener for attendance records from Firestore
+  useEffect(() => {
+    if (firebaseConfig && firebaseConfig.projectId) {
+      const unsubscribe = subscribeAttendance(firebaseConfig, (cloudRecords) => {
+        setRecords(cloudRecords);
+      });
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [firebaseConfig]);
+
+  // Save firebaseConfig state on changes
+  useEffect(() => {
+    if (firebaseConfig) {
+      localStorage.setItem('taliabu_firebase_config', JSON.stringify(firebaseConfig));
+    } else {
+      localStorage.removeItem('taliabu_firebase_config');
+    }
+  }, [firebaseConfig]);
 
   // School config
   const [config, setConfig] = useState<SchoolConfig>(() => {
@@ -145,13 +203,18 @@ export default function App() {
       registeredAt: new Date().toISOString()
     };
     setTeachers(prev => [t, ...prev]);
+    if (firebaseConfig) {
+      saveTeacherToCloud(firebaseConfig, t);
+    }
   };
 
   // Delete a teacher
   const handleDeleteTeacher = (id: string) => {
     setTeachers(prev => prev.filter(t => t.id !== id));
-    // optionally clean up records as well
     setRecords(prev => prev.filter(r => r.teacherId !== id));
+    if (firebaseConfig) {
+      deleteTeacherFromCloud(firebaseConfig, id);
+    }
   };
 
   // Update School Configuration
@@ -169,19 +232,29 @@ export default function App() {
     // Check if there is already a record for this teacher on this exact date
     setRecords(prev => {
       const idx = prev.findIndex(item => item.teacherId === newRec.teacherId && item.date === newRec.date);
+      let targetRecord: AttendanceRecord;
+      const updated = [...prev];
       if (idx >= 0) {
         // overwrite/merge
-        const updated = [...prev];
-        updated[idx] = { ...prev[idx], ...rec, id: prev[idx].id };
-        return updated;
+        targetRecord = { ...prev[idx], ...rec, id: prev[idx].id };
+        updated[idx] = targetRecord;
+      } else {
+        targetRecord = rec;
+        updated.unshift(rec);
       }
-      return [rec, ...prev];
+      if (firebaseConfig) {
+        saveAttendanceToCloud(firebaseConfig, targetRecord);
+      }
+      return updated;
     });
   };
 
   // Delete attendance record
   const handleDeleteRecord = (id: string) => {
     setRecords(prev => prev.filter(r => r.id !== id));
+    if (firebaseConfig) {
+      deleteAttendanceFromCloud(firebaseConfig, id);
+    }
   };
 
   // Core biometric attendance scanner clock register
@@ -199,6 +272,7 @@ export default function App() {
     setRecords(prev => {
       const existingIdx = prev.findIndex(r => r.teacherId === teacherId && r.date === dateStr);
       const updated = [...prev];
+      let targetRecord: AttendanceRecord;
 
       if (existingIdx >= 0) {
         // Record exists, let's update current keys
@@ -225,6 +299,7 @@ export default function App() {
             : "Presensi Biometrik Wajah";
         }
         updated[existingIdx] = current;
+        targetRecord = current;
       } else {
         // Create new record
         let statusIn: 'Hadir' | 'Terlambat' | null = null;
@@ -240,7 +315,7 @@ export default function App() {
           statusOut = timeVal < outVal ? 'Pulang Cepat' : 'Pulang';
         }
 
-        updated.unshift({
+        const newRec: AttendanceRecord = {
           id: `punch-${Date.now()}`,
           teacherId,
           teacherName: teacher.name,
@@ -256,9 +331,14 @@ export default function App() {
             : "Presensi Biometrik Wajah",
           verificationPhoto,
           livenessVerified
-        });
+        };
+        updated.unshift(newRec);
+        targetRecord = newRec;
       }
 
+      if (firebaseConfig) {
+        saveAttendanceToCloud(firebaseConfig, targetRecord);
+      }
       return updated;
     });
   };
@@ -513,6 +593,9 @@ export default function App() {
               onUpdateConfig={handleUpdateConfig}
               onAddManualRecord={handleAddManualRecord}
               onDeleteRecord={handleDeleteRecord}
+              firebaseConfig={firebaseConfig}
+              setFirebaseConfig={setFirebaseConfig}
+              isCloudActive={isCloudActive}
             />
           </div>
         )}
@@ -522,8 +605,8 @@ export default function App() {
       <footer className="h-10 bg-slate-800 px-4 sm:px-8 flex items-center justify-between text-[10px] text-slate-400 shrink-0 uppercase tracking-widest font-semibold" id="app-footer">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>DATABASE CONNECTED</span>
+            <span className={`w-2 h-2 rounded-full ${isCloudActive ? 'bg-emerald-400 shadow-md shadow-emerald-400/40 animate-pulse' : 'bg-amber-400'}`}></span>
+            <span>{isCloudActive ? 'CLOUD SYNC ACTIVE (FIRESTORE)' : 'LOCAL OFFLINE STORAGE FALLBACK'}</span>
           </div>
           <div className="flex items-center gap-1.5 hidden sm:flex">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
