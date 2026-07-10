@@ -73,9 +73,30 @@ export default function App() {
 
   // Firebase cloud sync credentials state
   const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConfigCredentials | null>(() => {
+    // 1. Check if there is config in localStorage
     const saved = localStorage.getItem('taliabu_firebase_config');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+
+    // 2. Fallback to Environment Variables (VITE_FIREBASE_*)
+    const metaEnv = (import.meta as any).env || {};
+    const envApiKey = metaEnv.VITE_FIREBASE_API_KEY;
+    const envAuthDomain = metaEnv.VITE_FIREBASE_AUTH_DOMAIN;
+    const envProjectId = metaEnv.VITE_FIREBASE_PROJECT_ID;
+    const envStorageBucket = metaEnv.VITE_FIREBASE_STORAGE_BUCKET;
+    const envMessagingSenderId = metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID;
+    const envAppId = metaEnv.VITE_FIREBASE_APP_ID;
+
+    if (envProjectId && envApiKey) {
+      return {
+        apiKey: envApiKey,
+        authDomain: envAuthDomain || '',
+        projectId: envProjectId,
+        storageBucket: envStorageBucket || '',
+        messagingSenderId: envMessagingSenderId || '',
+        appId: envAppId || '',
+      };
     }
     return null;
   });
